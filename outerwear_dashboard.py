@@ -18,10 +18,28 @@ st.set_page_config(
 # --- CSS 스타일링 ---
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 4px solid #00c853; }
-    h1, h2, h3 { color: #1a237e; font-weight: 800; }
-    div[data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #dee2e6; }
+    /* 메인 배경색 강제 지정 제거 (테마 따름) */
+    /* .main { background-color: #f8f9fa; } */
+    
+    /* Metric 카드 스타일: 배경이 흰색이므로 글자색을 검정으로 강제 */
+    .stMetric { 
+        background-color: #ffffff; 
+        padding: 20px; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+        border-top: 4px solid #00c853; 
+        color: #000000 !important;
+    }
+    
+    /* Metric 내부 라벨 색상도 강제 (Streamlit 버전마다 클래스가 다를 수 있어 포괄적으로 지정) */
+    .stMetric label { color: #666666 !important; }
+    .stMetric div[data-testid="stMetricValue"] { color: #000000 !important; }
+
+    /* 헤더 색상: 다크모드 대응을 위해 제거하거나 조정. 여기서는 테마 기본값 사용 권장으로 주석 처리 */
+    /* h1, h2, h3 { color: #1a237e; font-weight: 800; } */
+    
+    /* 사이드바 배경: 테마 따름 */
+    /* div[data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #dee2e6; } */
     </style>
 """, unsafe_allow_html=True)
 
