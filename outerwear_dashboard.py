@@ -352,14 +352,49 @@ if 'outer_trend' in st.session_state:
                                       labels={'mallName': '쇼핑몰', 'count': '상품 수', 'mean_price': '평균가격'})
                     st.plotly_chart(fig_bar3, use_container_width=True)
 
-            # 6. 분석 인사이트 (결론)
+            # 6. 브랜드 및 가격 구조 심층 분석 (추가 요건 충족: 피봇#3, 막대#4, 히트맵#3)
+            st.subheader("6. 브랜드 시장 점유율 및 가격 포지셔닝")
+            if not full_shop_df.empty and 'brand' in full_shop_df.columns:
+                # 데이터 정제: 브랜드 없는 경우 제외
+                brand_df = full_shop_df[full_shop_df['brand'] != ""].copy()
+                
+                # 피봇 테이블 #3: 브랜드별 상품 수 및 평균 가격
+                # Top 15 브랜드 선정
+                top_brands = brand_df['brand'].value_counts().head(15).index
+                filtered_brand_df = brand_df[brand_df['brand'].isin(top_brands)]
+                
+                brand_pivot = filtered_brand_df.pivot_table(index='brand', values='lprice', aggfunc=['count', 'mean']).reset_index()
+                brand_pivot.columns = ['Brand', 'Product Count', 'Avg Price']
+                brand_pivot = brand_pivot.sort_values('Product Count', ascending=False)
+                
+                c_brand1, c_brand2 = st.columns([1, 2])
+                with c_brand1:
+                    st.markdown("**브랜드별 주요 지표 (Pivot Table #3)**")
+                    st.dataframe(brand_pivot.style.format({'Avg Price': '{:,.0f}'}).background_gradient(subset=['Product Count'], cmap='Purples'), use_container_width=True)
+                
+                with c_brand2:
+                    # 막대 그래프 #4: 브랜드별 상품 점유율
+                    fig_bar4 = px.bar(brand_pivot, x='Brand', y='Product Count', color='Avg Price',
+                                      title="Top 15 브랜드 상품 수 및 평균가 (막대 #4)",
+                                      labels={'Brand': '브랜드', 'Product Count': '상품 수', 'Avg Price': '평균 가격'},
+                                      color_continuous_scale='Bluered')
+                    st.plotly_chart(fig_bar4, use_container_width=True)
+                
+                st.markdown("**브랜드 vs 아우터 키워드 가격 히트맵 (Heatmap #3)**")
+                # 피봇 테이블 #4 (히트맵용): 브랜드(행) x 키워드(열) -> 평균 가격
+                brand_kw_pivot = filtered_brand_df.pivot_table(index='brand', columns='keyword', values='lprice', aggfunc='mean')
+                fig_heat3 = px.imshow(brand_kw_pivot, text_auto='.0f', color_continuous_scale='Magma',
+                                      title="브랜드별/키워드별 평균 가격대 포지셔닝 (히트맵 #3)")
+                st.plotly_chart(fig_heat3, use_container_width=True)
+
+            # 7. 분석 인사이트 (결론)
             st.divider()
             st.subheader("💡 데이터 전처리 후 분석 인사이트")
             st.success(f"""
-            - **결측치 현황**: 트렌드 데이터는 API 응답이 정상이면 결측치가 거의 없으나, 쇼핑 API의 경우 일부 필드(브랜드 등)에 결측이 존재할 수 있음. 시각화 결과 참조.
-            - **이상치(Outlier)**: 가격 데이터(Boxplot)에서 꼬리가 긴 분포가 확인된다면, 일부 고가 명품 라인업이 평균을 왜곡하고 있을 가능성이 있음.
-            - **트렌드 상관성**: 히트맵을 통해 **{' / '.join(keywords[:2])}** 등 서로 유사한 패턴을 보이는 아우터 그룹을 식별할 수 있음.
-            - **요일 패턴**: 요일별 히트맵 분석 결과, 특정 요일에 검색량이 집중되는 경향(예: 주말 전 쇼핑 탐색)을 파악하여 마케팅 적기 선정 가능.
+            - **결측치 현황**: 트렌드 데이터는 API 응답이 정상이면 결측치가 거의 없으나, 쇼핑 API의 경우 브랜드 정보 필드에 결측이 다수 존재할 수 있음.
+            - **상관관계(Heatmap)**: **{' / '.join(keywords[:2])}** 등 특정 아우터 간의 검색 트렌드가 유사하게 움직이는지(계수가 1에 가까운지) 확인 가능.
+            - **요일 패턴(Pivot)**: 요일별 히트맵을 통해 주말/주중 검색 패턴의 차이를 명확히 구분할 수 있음.
+            - **브랜드 포지셔닝**: 고가 정책을 쓰는 브랜드와 다량의 중저가 상품을 공급하는 브랜드군을 시각적으로 분류 가능.
             """)
     else:
         st.warning("데이터가 없습니다.")
