@@ -163,7 +163,7 @@ if 'outer_trend' in st.session_state:
         df['period'] = pd.to_datetime(df['period'])
         
         # Tab 구성
-        tab1, tab2 = st.tabs(["📈 검색 트렌드 비교", "🛍️ 아우터별 인기 상품"])
+        tab1, tab2, tab3 = st.tabs(["📈 검색 트렌드 비교", "🛍️ 아우터별 인기 상품", "📊 고급 데이터 분석"])
         
         # Tab 1: 트렌드
         with tab1:
@@ -223,5 +223,132 @@ if 'outer_trend' in st.session_state:
                         shop_df[['title', 'lprice', 'mallName', 'brand', 'category1']].head(20),
                         use_container_width=True
                     )
+        
+        # Tab 3: 고급 데이터 분석
+        with tab3:
+            st.header("📊 데이터 분석 결과물")
+            st.markdown("수집된 **쇼핑 트렌드** 및 **쇼핑 검색** 데이터를 기반으로 심층 분석을 수행합니다.")
+
+            # 1. 컬럼별 결측값 개수 및 비율 시각화
+            st.subheader("1. 데이터 품질 점검 (결측치)")
+            
+            # (1) 트렌드 데이터
+            trend_nulls = df.isnull().sum().reset_index()
+            trend_nulls.columns = ['Column', 'Missing Count']
+            trend_nulls['Missing Ratio (%)'] = (trend_nulls['Missing Count'] / len(df)) * 100
+            
+            # (2) 쇼핑 데이터 (만약 tab2에서 로드되었다면 사용, 아니면 재로드 필요)
+            # 여기서는 편의상 현재 세션에 있는 keywords 전체에 대해 쇼핑 데이터를 가져와서 합쳐본다.
+            full_shop_df = pd.DataFrame()
+            if 'full_shop_df' not in st.session_state:
+                with st.spinner("분석용 쇼핑 전체 데이터 로드 중..."):
+                    temp_dfs = []
+                    for k in keywords:
+                        t_df, _ = fetch_shop_search(k)
+                        if t_df is not None:
+                            t_df['keyword'] = k
+                            temp_dfs.append(t_df)
+                    if temp_dfs:
+                        full_shop_df = pd.concat(temp_dfs)
+                        # 전처리
+                        full_shop_df['lprice'] = pd.to_numeric(full_shop_df['lprice'], errors='coerce')
+                    st.session_state['full_shop_df'] = full_shop_df
+            else:
+                full_shop_df = st.session_state['full_shop_df']
+
+            shop_nulls = full_shop_df.isnull().sum().reset_index()
+            shop_nulls.columns = ['Column', 'Missing Count']
+            shop_nulls['Missing Ratio (%)'] = (shop_nulls['Missing Count'] / len(full_shop_df)) * 100
+
+            c_null1, c_null2 = st.columns(2)
+            with c_null1:
+                st.markdown("**트렌드 데이터 결측 현황**")
+                fig_null1 = px.bar(trend_nulls, x='Column', y='Missing Count', text='Missing Count', 
+                                   title="트렌드 데이터 결측치 (막대 #1)", color_discrete_sequence=['#ef5350'])
+                st.plotly_chart(fig_null1, use_container_width=True)
+            with c_null2:
+                st.markdown("**쇼핑 데이터 결측 현황**")
+                fig_null2 = px.bar(shop_nulls, x='Column', y='Missing Count', text='Missing Count', 
+                                   title="쇼핑 데이터 결측치 (막대 #2)", color_discrete_sequence=['#ffa726'])
+                st.plotly_chart(fig_null2, use_container_width=True)
+
+            # 2. 이상치·결측치 현황 (박스플롯)
+            st.subheader("2. 이상치 및 데이터 분포 (Box Plot)")
+            c_box1, c_box2 = st.columns(2)
+            with c_box1:
+                st.markdown("**트렌드 검색량(Ratio) 분포**")
+                fig_box1 = px.box(df, x='keyword', y='ratio', color='keyword', 
+                                  title="검색어별 검색량 이상치 분석")
+                st.plotly_chart(fig_box1, use_container_width=True)
+            with c_box2:
+                st.markdown("**쇼핑 가격(Price) 분포**")
+                if not full_shop_df.empty:
+                    fig_box2 = px.box(full_shop_df, x='keyword', y='lprice', color='keyword', 
+                                      title="아우터별 가격대 이상치 분석")
+                    st.plotly_chart(fig_box2, use_container_width=True)
+
+            # 3. 주요 변수 간 상관관계 분석 (히트맵 #1)
+            st.subheader("3. 상관관계 분석")
+            # 트렌드 데이터 피봇
+            trend_pivot = df.pivot_table(index='period', columns='keyword', values='ratio')
+            corr = trend_pivot.corr()
+            
+            c_corr1, c_corr2 = st.columns([2, 1])
+            with c_corr1:
+                fig_heat1 = px.imshow(corr, text_auto=True, color_continuous_scale='RdBu_r', 
+                                      title="키워드 검색 트렌드 상관관계 (히트맵 #1)")
+                st.plotly_chart(fig_heat1, use_container_width=True)
+            with c_corr2:
+                st.markdown("""
+                **분석 해석**:
+                - **1.00**에 가까울수록 두 아우터의 검색 패턴이 유사합니다. (함께 검색됨)
+                - **음수**일 경우 상반된 검색 패턴을 보입니다.
+                - 계절성이 비슷한 아우터끼리 높은 상관관계를 보일 가능성이 큽니다.
+                """)
+
+            # 4. 피봇테이블 및 추가 히트맵 (히트맵 #2)
+            st.subheader("4. 요일별 검색 패턴 (피봇테이블 & 히트맵 #2)")
+            df['day_name'] = df['period'].dt.day_name()
+            # 정렬 순서
+            days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            df['day_name'] = pd.Categorical(df['day_name'], categories=days, ordered=True)
+            
+            day_pivot = df.pivot_table(index='day_name', columns='keyword', values='ratio', aggfunc='mean')
+            
+            c_pivot1, c_pivot2 = st.columns(2)
+            with c_pivot1:
+                st.markdown("**요일별 평균 검색량 (Pivot Table)**")
+                st.dataframe(day_pivot.style.background_gradient(cmap='Blues'), use_container_width=True)
+            with c_pivot2:
+                fig_heat2 = px.imshow(day_pivot, text_auto='.1f', color_continuous_scale='Greens',
+                                      title="요일별 검색 강도 (히트맵 #2)")
+                st.plotly_chart(fig_heat2, use_container_width=True)
+
+            # 5. 쇼핑몰별 분석 (피봇 #2 & 막대 #3)
+            st.subheader("5. 쇼핑몰별 상품 수 및 평균가 (Pivot Table #2)")
+            if not full_shop_df.empty:
+                mall_pivot = full_shop_df.pivot_table(index='mallName', values='lprice', aggfunc=['count', 'mean']).reset_index()
+                mall_pivot.columns = ['mallName', 'count', 'mean_price']
+                # Top 10 몰만 추출
+                top_malls = mall_pivot.sort_values('count', ascending=False).head(10)
+                
+                c_mall1, c_mall2 = st.columns([1, 2])
+                with c_mall1:
+                    st.dataframe(top_malls.style.format({'mean_price': '{:,.0f}'}), use_container_width=True)
+                with c_mall2:
+                    fig_bar3 = px.bar(top_malls, x='mallName', y='count', color='mean_price',
+                                      title="주요 판매처별 상품 수 및 평균가 (막대 #3)",
+                                      labels={'mallName': '쇼핑몰', 'count': '상품 수', 'mean_price': '평균가격'})
+                    st.plotly_chart(fig_bar3, use_container_width=True)
+
+            # 6. 분석 인사이트 (결론)
+            st.divider()
+            st.subheader("💡 데이터 전처리 후 분석 인사이트")
+            st.success(f"""
+            - **결측치 현황**: 트렌드 데이터는 API 응답이 정상이면 결측치가 거의 없으나, 쇼핑 API의 경우 일부 필드(브랜드 등)에 결측이 존재할 수 있음. 시각화 결과 참조.
+            - **이상치(Outlier)**: 가격 데이터(Boxplot)에서 꼬리가 긴 분포가 확인된다면, 일부 고가 명품 라인업이 평균을 왜곡하고 있을 가능성이 있음.
+            - **트렌드 상관성**: 히트맵을 통해 **{' / '.join(keywords[:2])}** 등 서로 유사한 패턴을 보이는 아우터 그룹을 식별할 수 있음.
+            - **요일 패턴**: 요일별 히트맵 분석 결과, 특정 요일에 검색량이 집중되는 경향(예: 주말 전 쇼핑 탐색)을 파악하여 마케팅 적기 선정 가능.
+            """)
     else:
         st.warning("데이터가 없습니다.")
