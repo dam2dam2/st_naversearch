@@ -263,14 +263,25 @@ if 'outer_trend' in st.session_state:
             c_null1, c_null2 = st.columns(2)
             with c_null1:
                 st.markdown("**트렌드 데이터 결측 현황**")
+                if trend_nulls['Missing Count'].sum() == 0:
+                    st.success("✅ 트렌드 데이터에 결측치가 없습니다.")
                 fig_null1 = px.bar(trend_nulls, x='Column', y='Missing Count', text='Missing Count', 
                                    title="트렌드 데이터 결측치 (막대 #1)", color_discrete_sequence=['#ef5350'])
+                fig_null1.update_yaxes(range=[0, max(1, trend_nulls['Missing Count'].max() * 1.1)]) # Y축 강제 설정
                 st.plotly_chart(fig_null1, use_container_width=True)
+                with st.expander("트렌드 데이터 결측 상세 보기"):
+                    st.dataframe(trend_nulls, use_container_width=True)
+
             with c_null2:
                 st.markdown("**쇼핑 데이터 결측 현황**")
+                if shop_nulls['Missing Count'].sum() == 0:
+                    st.success("✅ 쇼핑 데이터에 결측치가 없습니다.")
                 fig_null2 = px.bar(shop_nulls, x='Column', y='Missing Count', text='Missing Count', 
                                    title="쇼핑 데이터 결측치 (막대 #2)", color_discrete_sequence=['#ffa726'])
+                fig_null2.update_yaxes(range=[0, max(1, shop_nulls['Missing Count'].max() * 1.1)])
                 st.plotly_chart(fig_null2, use_container_width=True)
+                with st.expander("쇼핑 데이터 결측 상세 보기"):
+                    st.dataframe(shop_nulls, use_container_width=True)
 
             # 2. 이상치·결측치 현황 (박스플롯)
             st.subheader("2. 이상치 및 데이터 분포 (Box Plot)")
